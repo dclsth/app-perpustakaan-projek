@@ -47,8 +47,10 @@ class BookFactory extends Factory
     {
         $category = Category::inRandomOrder()->first();
         $pool = $this->judulPerKategori[$category?->nama_kategori] ?? $this->judulPerKategori['Novel'];
+        $codePrefix = strtoupper(substr($category?->nama_kategori ?? 'N', 0, 1));
 
         return [
+            'kode_buku' => $codePrefix.fake()->unique()->numerify('###'),
             'judul' => fake()->randomElement($pool),
             'penulis' => fake()->name(),
             'penerbit' => fake()->randomElement($this->penerbit),

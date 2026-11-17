@@ -8,18 +8,19 @@
 
     <p><a href="{{ route('books.create') }}" class="btn">+ Tambah Buku</a></p>
 
-    <table>
+    <div class="table-wrap"><table>
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Judul</th>
+                <th>Kode Buku</th>
                 <th>Penulis</th>
                 <th>Penerbit</th>
                 <th>Tahun</th>
                 <th>Stok</th>
                 <th>Kategori</th>
+                <th>Status Peminjaman</th>
                 <th>Aksi</th>
-                <th>Kategori</th>
 
             </tr>
         </thead>
@@ -28,34 +29,39 @@
                 <tr>
                     <td>{{ $book['id'] }}</td>
                     <td>{{ $book['judul'] }}</td>
+                    <td>{{ $book['kode_buku'] ?? '-' }}</td>
                     <td>{{ $book['penulis'] }}</td>
                     <td>{{ $book['penerbit'] }}</td>
                     <td>{{ $book['tahun_terbit'] }}</td>
                     <td>{{ $book['stok'] }}</td>
-                    <td>{{ $book['kategori'] }}</td>
+                    <td>{{ $book->category->nama_kategori ?? '-' }}</td>
+                    <td>
+                        @if ($book->sedang_dipinjam)
+                            <span class="badge badge-dipinjam">Sedang dipinjam</span>
+                        @else
+                            <span class="badge badge-dikembalikan">Tersedia</span>
+                        @endif
+                    </td>
                     <td>
                         <a href="{{ route('books.show', $book['id']) }}">Detail</a>
                         |
                         <a href="{{ route('books.edit', $book['id']) }}">Edit</a>
                         |
-                        <form class="inline" action="{{ route('books.destroy', $book['id']) }}" method="POST">
+                        <form class="inline danger-action" action="{{ route('books.destroy', $book['id']) }}" method="POST">
                             @csrf
                             @method('DELETE')
                             <button type="submit">Hapus</button>
                         </form>
                     </td>
-                    <td>{{ $book['category']['nama_kategori'] }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8">Belum ada data buku.</td>
+                    <td colspan="10">Belum ada data buku.</td>
                 </tr>
             @endforelse
         </tbody>
-    </table>
+    </table></div>
 
     {{ $books->links() }}
-
-    <p><em>Catatan: kolom kategori masih menampilkan ID. Menampilkan nama kategori memerlukan Eloquent Relationship, dipelajari di Pertemuan 7.</em></p>
 
 @endsection

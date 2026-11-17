@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Member;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use App\Http\Requests\StoreMemberRequest;
 
 
@@ -12,7 +14,7 @@ class MemberController extends Controller
     public function index()
     {
         // Pagination dan Pencarian
-        $members = Member::when(request('search'), fn ($query, $search) => $query->where('nama', 'like', "%{$search}%"))->paginate(10);
+        $members = Member::with('user')->when(request('search'), fn ($query, $search) => $query->where('nama', 'like', "%{$search}%"))->paginate(10);
         return view('members.index', compact('members'));
     }
 
@@ -24,7 +26,8 @@ class MemberController extends Controller
     public function store(StoreMemberRequest $request)
     {
         $validated = $request->validated();
-        Member::create($validated);
+        $accountId = User::where('email', $validated['email'])->where('role', 'member')->value('id');
+        Member::create($validated + ['user_id' => $accountId]);
 
         return redirect()->route('members.index')
             ->with('success', "Anggota \"{$validated['nama']}\" berhasil ditambahkan.");
@@ -32,7 +35,7 @@ class MemberController extends Controller
 
     public function show(string $id)
     {
-        $member = Member::findOrFail($id);
+        $member = Member::with(['user', 'loans.user', 'loans.loanItems.book'])->findOrFail($id);
         return view('members.show', compact('member'));
     }
 
@@ -49,13 +52,16 @@ class MemberController extends Controller
         $validated = $request->validate([
             'nama' => 'required|string|max:100',
             'nim' => 'required|string|max:20|unique:members,nim,' . $member->id,
-            'email' => 'required|email|max:100|unique:members,email,' . $member->id,
+            'email' => ['required', 'email', 'max:100', Rule::unique('members', 'email')->ignore($member->id), Rule::unique('users', 'email')->ignore($member->user_id)],
             'nomor_telepon' => 'required|string|max:15',
             'alamat' => 'required|string',
             'status' => 'required|in:aktif,nonaktif',
         ]);
 
         $member->update($validated);
+        if ($member->user) {
+            $member->user->update(['name' => $validated['nama'], 'email' => $validated['email']]);
+        }
 
         return redirect()->route('members.index')
             ->with('success', "Data anggota \"{$validated['nama']}\" berhasil diperbarui.");

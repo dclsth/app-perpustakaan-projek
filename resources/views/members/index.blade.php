@@ -6,7 +6,7 @@
 @section('content')
     <h1>Daftar Anggota</h1>
 
-    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+    <div class="toolbar">
         <p><a href="{{ route('members.create') }}" class="btn">+ Tambah Anggota</a></p>
 
 
@@ -17,13 +17,14 @@
         </form>
     </div>
 
-    <table>
+    <div class="table-wrap"><table>
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Nama</th>
                 <th>NIM</th>
                 <th>Email</th>
+                <th>Akun Login</th>
                 <th>No. Telepon</th>
                 <th>Status</th>
                 <th>Aksi</th>
@@ -37,6 +38,7 @@
                     <td>{{ $member->nama }}</td>
                     <td>{{ $member->nim }}</td>
                     <td>{{ $member->email }}</td>
+                    <td>{{ $member->user ? 'Terhubung' : 'Belum terhubung' }}</td>
                     <td>{{ $member->nomor_telepon }}</td>
                     <td>{{ ucfirst($member->status) }}</td>
                     <td>
@@ -44,7 +46,7 @@
                         |
                         <a href="{{ route('members.edit', $member->id) }}">Edit</a>
                         |
-                        <form style="display: inline;" action="{{ route('members.destroy', $member->id) }}" method="POST">
+                        <form class="inline danger-action" action="{{ route('members.destroy', $member->id) }}" method="POST">
                             @csrf
                             @method('DELETE')
                             <button type="submit">Hapus</button>
@@ -53,11 +55,11 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7">Belum ada data anggota.</td>
+                    <td colspan="8">Belum ada data anggota.</td>
                 </tr>
             @endforelse
         </tbody>
-    </table>
+    </table></div>
 
     {{-- Supaya fitur search dan pagination jalan bersamaan (halaman 2 tetap mem-filter nama yang dicari) --}}
     {{ $members->withQueryString()->links() }}

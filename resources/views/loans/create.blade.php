@@ -1,70 +1,37 @@
+@extends('layouts.app')
 
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <title>Tambah Peminjaman</title>
-    <style>
-        body { font-family: sans-serif; margin: 40px; max-width: 500px; }
-        label { display: block; margin-top: 12px; font-weight: bold; }
-        input, select { width: 100%; padding: 6px; margin-top: 4px; box-sizing: border-box; }
-        .checkbox-list { border: 1px solid #ccc; border-radius: 4px; padding: 10px; margin-top: 4px; max-height: 200px; overflow-y: auto; }
-        .checkbox-list label { display: block; font-weight: normal; margin-top: 0; }
-        .error { color: #b91c1c; font-size: 14px; margin-top: 4px; }
-        .btn { margin-top: 20px; padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-    </style>
-</head>
-<body>
-    <h1>Tambah Peminjaman</h1>
+@section('title', 'Input Peminjaman')
+
+@section('content')
+<div class='form-panel'>
+    <h1>Input Peminjaman</h1>
     <p><a href="{{ route('loans.index') }}">&larr; Kembali ke daftar peminjaman</a></p>
 
     <form action="{{ route('loans.store') }}" method="POST">
         @csrf
 
-        <label for="member_id">Anggota</label>
-        <select name="member_id" id="member_id">
-            <option value="">-- Pilih Anggota --</option>
-            @foreach ($members as $member)
-                <option value="{{ $member['id'] }}" @selected(old('member_id') == $member['id'])>
-                    {{ $member['nama'] }} ({{ $member['nim'] }})
-                </option>
-            @endforeach
-        </select>
-        @error('member_id')
-            <div class="error">{{ $message }}</div>
-        @enderror
+        <label for="nim">NIM Peminjam</label>
+        <input type="text" name="nim" id="nim" value="{{ old('nim') }}" required autofocus>
+        @error('nim') <div class="error">{{ $message }}</div> @enderror
 
-        <label for="user_id">Petugas</label>
-            <p><em>Petugas pencatat: {{ auth()->user()->name }} (otomatis dari akun yang login).</em></p>
-        <label for="tanggal_pinjam">Tanggal Pinjam</label>
-        <input type="date" name="tanggal_pinjam" id="tanggal_pinjam" value="{{ old('tanggal_pinjam') }}">
-        @error('tanggal_pinjam')
-            <div class="error">{{ $message }}</div>
-        @enderror
+        <div class="context-note"><strong>Petugas pencatat</strong><br>{{ auth()->user()->name }} (otomatis dari akun yang login)</div>
+        <p><strong>Tanggal pinjam:</strong> {{ today('Asia/Jakarta')->format('d-m-Y') }}</p>
+        <p><strong>Batas pengembalian:</strong> {{ today('Asia/Jakarta')->addWeek()->format('d-m-Y') }} (otomatis 7 hari)</p>
 
-        <label for="tanggal_kembali">Tanggal Kembali</label>
-        <input type="date" name="tanggal_kembali" id="tanggal_kembali" value="{{ old('tanggal_kembali') }}">
-        @error('tanggal_kembali')
-            <div class="error">{{ $message }}</div>
-        @enderror
+        <label for="kode_buku">Kode Buku</label>
+        <textarea name="kode_buku" id="kode_buku" rows="4" placeholder="Satu kode per baris, atau pisahkan dengan koma" required>{{ old('kode_buku') }}</textarea>
+        @error('kode_buku') <div class="error">{{ $message }}</div> @enderror
 
-        <label>Buku yang Dipinjam</label>
-        <div class="checkbox-list">
+        <h2>Referensi Kode Buku</h2>
+        <ul>
             @forelse ($books as $book)
-                <label>
-                    <input type="checkbox" name="book_ids[]" value="{{ $book['id'] }}"
-                        @checked(in_array($book['id'], old('book_ids', [])))>
-                    {{ $book['judul'] }} (stok: {{ $book['stok'] }})
-                </label>
+                <li>{{ $book->kode_buku }} â€” {{ $book->judul }} (stok: {{ $book->stok }}, status: {{ $book->sedang_dipinjam ? 'Sedang dipinjam' : 'Tersedia' }})</li>
             @empty
-                <p>Belum ada data buku.</p>
+                <li>Belum ada data buku.</li>
             @endforelse
-        </div>
-        @error('book_ids')
-            <div class="error">{{ $message }}</div>
-        @enderror
+        </ul>
 
-        <button type="submit" class="btn">Simpan</button>
+        <button type="submit" class="btn">Simpan Peminjaman</button>
     </form>
-</body>
-</html>
+</div>
+@endsection

@@ -21,5 +21,5 @@
         </div>
     </div>
 
-    <p style="margin-top: 24px;"><a href="{{ route('loans.report') }}" class="btn">Lihat Laporan Peminjaman</a></p>
+    <p class="section-action"><a href="{{ route('loans.report') }}" class="btn">Lihat Laporan Peminjaman</a></p>
 @endsection

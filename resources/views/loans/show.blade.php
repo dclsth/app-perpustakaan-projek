@@ -1,21 +1,13 @@
+@extends('layouts.app')
 
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <title>Detail Peminjaman</title>
-    <style>
-        body { font-family: sans-serif; margin: 40px; max-width: 600px; }
-        table { border-collapse: collapse; width: 100%; margin-top: 16px; }
-        th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
-        .info th { width: 160px; background: #f3f4f6; }
-    </style>
-</head>
-<body>
+@section('title', 'Detail Peminjaman')
+
+@section('content')
+<div class='detail-panel'>
     <h1>Detail Peminjaman</h1>
     <p><a href="{{ route('loans.index') }}">&larr; Kembali ke daftar peminjaman</a></p>
 
-    <table class="info">
+    <div class="table-wrap"><table class="info">
         <tr>
             <th>Anggota</th>
             <td>{{ $loan['member']['nama'] }} ({{ $loan['member']['nim'] }})</td>
@@ -44,12 +36,13 @@
                 </span>
             </td>
         </tr>
-    </table>
+    </table></div>
 
     <h2>Buku yang Dipinjam</h2>
-    <table>
+    <div class="table-wrap"><table>
         <thead>
             <tr>
+                <th>Kode Buku</th>
                 <th>Judul</th>
                 <th>Penulis</th>
             </tr>
@@ -57,11 +50,12 @@
         <tbody>
             @foreach ($loan['loanItems'] as $item)
                 <tr>
+                    <td>{{ $item['book']['kode_buku'] ?? '-' }}</td>
                     <td>{{ $item['book']['judul'] }}</td>
                     <td>{{ $item['book']['penulis'] }}</td>
                 </tr>
             @endforeach
         </tbody>
-    </table>
-</body>
-</html>
+    </table></div>
+</div>
+@endsection

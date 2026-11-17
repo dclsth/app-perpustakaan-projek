@@ -8,7 +8,7 @@
 
     <p><a href="{{ route('categories.create') }}" class="btn">+ Tambah Kategori</a></p>
 
-    <table>
+    <div class="table-wrap"><table>
         <thead>
             <tr>
                 <th>ID</th>
@@ -26,7 +26,7 @@
                     <td>
                         <a href="{{ route('categories.edit', $category['id']) }}">Edit</a>
                         |
-                        <form class="inline" action="{{ route('categories.destroy', $category['id']) }}" method="POST">
+                        <form class="inline danger-action" action="{{ route('categories.destroy', $category['id']) }}" method="POST">
                             @csrf
                             @method('DELETE')
                             <button type="submit">Hapus</button>
@@ -39,7 +39,7 @@
                 </tr>
             @endforelse
         </tbody>
-    </table>
+    </table></div>
 
    {{ $categories->links() }}
 @endsection

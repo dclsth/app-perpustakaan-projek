@@ -6,10 +6,14 @@ use App\Models\Book;
 use App\Models\Loan;
 use App\Models\Member;
 use App\Models\User;
+use App\Models\WaitingListEntry;
+use App\Notifications\BookAvailableNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 
 
 class LoanController extends Controller
@@ -30,7 +34,7 @@ class LoanController extends Controller
     public function create()
     {
         $members = Member::all();
-        $books = Book::all();
+        $books = Book::withLoanStatus()->orderBy('kode_buku')->get();
 
         return view('loans.create', compact('members', 'books'));
     }
@@ -40,24 +44,60 @@ class LoanController extends Controller
      */
     public function store(Request $request)
     {
+        $bookCodes = collect(preg_split('/[\\r\\n,;]+/', strtoupper(trim((string) $request->input('kode_buku')))))
+            ->map(fn ($code) => trim($code))
+            ->filter()
+            ->values();
+
         $validated = $request->validate([
-                'member_id' => 'required|integer|exists:members,id',
-                'tanggal_pinjam' => 'required|date',
-                'tanggal_kembali' => 'required|date|after_or_equal:tanggal_pinjam',
-                'book_ids' => 'required|array|min:1',
-                'book_ids.*' => 'integer|exists:books,id',
-            ]);
+            'nim' => ['required', 'string', 'exists:members,nim'],
+            'kode_buku' => ['required', 'string'],
+        ]);
 
-            $loan = Loan::create([
-                'member_id' => $validated['member_id'],
-                'user_id' => Auth::id(),
-                'tanggal_pinjam' => $validated['tanggal_pinjam'],
-                'tanggal_kembali' => $validated['tanggal_kembali'],
-            ]);
-
-        foreach ($validated['book_ids'] as $bookId) {
-            $loan->loanItems()->create(['book_id' => $bookId]);
+        if ($bookCodes->isEmpty()) {
+            return back()->withErrors(['kode_buku' => 'Masukkan minimal satu kode buku.'])->withInput();
         }
+
+        if ($bookCodes->unique()->count() !== $bookCodes->count()) {
+            return back()->withErrors(['kode_buku' => 'Kode buku yang sama tidak boleh dimasukkan lebih dari sekali.'])->withInput();
+        }
+
+        $member = Member::where('nim', $validated['nim'])->firstOrFail();
+        if ($member->status !== 'aktif') {
+            return back()->withErrors(['nim' => 'Status anggota tidak aktif sehingga tidak dapat meminjam buku.'])->withInput();
+        }
+
+        DB::transaction(function () use ($member, $bookCodes) {
+            $books = Book::whereIn('kode_buku', $bookCodes)->lockForUpdate()->get()->keyBy('kode_buku');
+            $missingCodes = $bookCodes->diff($books->keys());
+            if ($missingCodes->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'kode_buku' => 'Kode buku tidak ditemukan: '.$missingCodes->implode(', '),
+                ]);
+            }
+
+            $unavailableCodes = $books->filter(fn ($book) => $book->loanItems()
+                ->whereHas('loan', fn ($loanQuery) => $loanQuery->whereIn('status', ['dipinjam', 'terlambat']))
+                ->exists())->pluck('kode_buku');
+
+            if ($unavailableCodes->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'kode_buku' => 'Buku sedang dipinjam dan belum dikembalikan: '.$unavailableCodes->implode(', '),
+                ]);
+            }
+
+            $tanggalPinjam = today('Asia/Jakarta');
+            $loan = Loan::create([
+                'member_id' => $member->id,
+                'user_id' => Auth::id(),
+                'tanggal_pinjam' => $tanggalPinjam->toDateString(),
+                'tanggal_kembali' => $tanggalPinjam->copy()->addWeek()->toDateString(),
+            ]);
+
+            foreach ($books as $book) {
+                $loan->loanItems()->create(['book_id' => $book->id]);
+            }
+        });
 
         return redirect()->route('loans.index')
             ->with('success', 'Transaksi peminjaman berhasil dibuat.');
@@ -98,7 +138,15 @@ class LoanController extends Controller
             'tanggal_kembali.after_or_equal' => 'Tanggal kembali tidak boleh sebelum tanggal pinjam.',
         ]);
 
-         $loan->update($validated);
+        $wasReturned = $loan->status === 'dikembalikan';
+        if (! $wasReturned && $validated['status'] === 'dikembalikan') {
+            $validated['tanggal_dikembalikan'] = today('Asia/Jakarta')->toDateString();
+        }
+
+        $loan->update($validated);
+        if (! $wasReturned && $loan->status === 'dikembalikan') {
+            $this->notifyWaitingMembers($loan);
+        }
 
         return redirect()->route('loans.index')
             ->with('success', 'Transaksi peminjaman berhasil diperbarui.');
@@ -121,14 +169,61 @@ class LoanController extends Controller
     public function kembalikan(string $id)
     {
         $loan = Loan::findOrFail($id);
+        $wasReturned = $loan->status === 'dikembalikan';
 
         $loan->update([
             'status' => 'dikembalikan',
-            'tanggal_dikembalikan' => now()->toDateString(),
+            'tanggal_dikembalikan' => today('Asia/Jakarta')->toDateString(),
         ]);
+
+        if (! $wasReturned) {
+            $this->notifyWaitingMembers($loan);
+        }
 
         return redirect()->route('loans.index')
             ->with('success', 'Buku berhasil dikembalikan.');
+    }
+
+    private function notifyWaitingMembers(Loan $loan): void
+    {
+        $loan->loadMissing('loanItems.book');
+
+        foreach ($loan->loanItems as $item) {
+            $book = $item->book;
+            if (! $book) {
+                continue;
+            }
+
+            $stillBorrowed = $book->loanItems()
+                ->where('loan_id', '!=', $loan->id)
+                ->whereHas('loan', fn ($query) => $query->whereIn('status', ['dipinjam', 'terlambat']))
+                ->exists();
+
+            if ($stillBorrowed) {
+                continue;
+            }
+
+            $entries = WaitingListEntry::with(['member.user'])
+                ->where('book_id', $book->id)
+                ->where('status', 'menunggu')
+                ->get();
+
+            foreach ($entries as $entry) {
+                $member = $entry->member;
+                $user = $member?->user ?? ($member
+                    ? User::where('email', $member->email)->where('role', 'member')->first()
+                    : null);
+
+                if ($user) {
+                    $user->notify(new BookAvailableNotification($book));
+                }
+
+                $entry->update([
+                    'status' => 'diberitahu',
+                    'notified_at' => now('Asia/Jakarta'),
+                ]);
+            }
+        }
     }
 
     public function report(Request $request)

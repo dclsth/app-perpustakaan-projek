@@ -28,5 +28,10 @@ class UserSeeder extends Seeder
             ['email' => 'petugas2@pens.ac.id'],
             ['name' => 'Ahmad Fauzi', 'password' => Hash::make('password'), 'role' => 'petugas']
         );
+
+        User::updateOrCreate(
+            ['email' => 'member1@pens.ac.id'],
+            ['name' => 'Dara Calistha', 'password' => Hash::make('password'), 'role' => 'member']
+        );
     }
 }

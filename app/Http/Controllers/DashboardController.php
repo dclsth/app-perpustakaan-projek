@@ -12,6 +12,10 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        if (auth()->user()->role === 'member') {
+            return redirect()->route('member.dashboard');
+        }
+
         $stats = [
             'total_buku'       => book::count(),
             'total_anggota'    => Member::count(),
